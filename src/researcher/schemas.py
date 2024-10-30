@@ -17,7 +17,10 @@ class ResearchProfile(BaseModel):
     google_scholar_link: Optional[str] = None
     personal_website_link: Optional[str] = None
     organization: Optional[str] = None
-    title: Optional[str] = None
-    age: Optional[int] = None
-    sex: Optional[str] = None
+    # title: Optional[str] = None
+    # age: Optional[int] = None
+    # sex: Optional[str] = None
+    title: str
+    age: int
+    sex: str
 #   paper: Optional[list[ResearchPaper]] = None
