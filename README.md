@@ -1,4 +1,4 @@
-# Project-Template
+# Composite Service
 ## Researcher-Service Installation Guide
 
 ### Installation Methods
