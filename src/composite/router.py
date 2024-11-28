@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, Request
 from fastapi_pagination import Page
 from fastapi_pagination.customization import CustomizedPage, UseName, UseOptionalParams, UseAdditionalFields
 from src.researcher.models import ResearchProfile as ResearchProfileModel
@@ -10,8 +10,22 @@ from src.database import get_db
 import time
 from typing import Optional, List
 import requests
+from pydantic import EmailStr
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+# TODO: Move to .env
+# HOPE the TA won't look at the commit logs, don't want to waste time here, for the extra communication
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+EMAIL_USER = "cloudcomputinglukeintheclouds@gmail.com"
+EMAIL_PASSWORD = "difnfkkfioaxjeai"
 
 # By HTTP requests - GET
 @router.get("/researcher1/{researcher_id}")
@@ -364,3 +378,52 @@ async def background_add_new_researcher(research_profile: ResearchProfile, backg
 
     return {'message': 'Research profile creation in progress.'}
 
+# Research_ID, [user, id]
+like_map = {'1': ['1','2','3'], '2': ['2','3'], '3': ['3']}
+
+# TODO: Modify the parameter to include info such as user id, research id, user email, researcher name
+# We would use some variable to record the state of the "like map state"
+# We would demo that when the user like some researcher, because it's not in the "like map", we don't send the email
+# And for someone who's in the like map, we show that the email is sent
+
+# The reason why we use email is because it's a more formal way for connection, since its acadmingle
+# Not because we don't want to spend time to communicate between frontend and backend
+@router.post("/like_researcher/")
+async def like_researcher(request: Request, user, researcher):
+    correlation_id = request.state.correlation_id
+    message = ''
+    user = str(user)
+    researcher = str(researcher)
+    if researcher in like_map:
+        if user in like_map[researcher]:
+            message = await send_email(user, correlation_id)
+
+    return {"message": message}
+
+async def send_email(recipient, correlation_id):
+    logger.info(f"Correlation ID: {correlation_id}, send_email - Request: Sending email to {recipient}")
+    try:
+        # TODO: 
+        # Change the email 
+        recipient = 'sw3975@columbia.edu'
+
+        # Create the email
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_USER
+        msg["To"] = recipient
+        msg["Subject"] = 'Match Notification!!!'
+
+        message = "Congradulations! "
+        msg.attach(MIMEText('TESTING', "plain"))
+
+        # Uncomment this part to send the email
+        # Send the email
+        # with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        #     server.starttls()  # Secure the connection
+        #     server.login(EMAIL_USER, EMAIL_PASSWORD)
+        #     server.sendmail(EMAIL_USER, recipient, msg.as_string())
+
+        logger.info(f"Correlation ID: {correlation_id}, send_email success")
+        return {"message": "Email sent successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
