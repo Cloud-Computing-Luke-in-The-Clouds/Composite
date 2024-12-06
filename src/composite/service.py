@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from src.researcher.models import ResearchProfile
+# from src.researcher.models import ResearchProfile
+from .models import ResearchProfile
 from fastapi_pagination.ext.sqlalchemy import paginate
 from typing import Optional, Dict, Any
 import time

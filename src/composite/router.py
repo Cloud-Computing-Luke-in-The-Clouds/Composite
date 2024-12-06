@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, Request
 from fastapi_pagination import Page
 from fastapi_pagination.customization import CustomizedPage, UseName, UseOptionalParams, UseAdditionalFields
-from src.researcher.models import ResearchProfile as ResearchProfileModel
-from src.researcher.schemas import ResearchProfile
+# from src.researcher.models import ResearchProfile as ResearchProfileModel
+from src.composite.models import ResearchProfile as ResearchProfileModel
+# from src.researcher.schemas import ResearchProfile
+# from src.composite.schemas import ResearchProfile
+from .schemas import ResearcherComposite, ResearchMetrics, Citation, ResearchProfile
 from sqlalchemy.orm import Session
 import httpx
 from . import service
@@ -15,6 +18,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
+from redis import Redis
+import json
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -53,7 +58,7 @@ async def get_researcher_composite(
     async with httpx.AsyncClient(timeout=30.0) as client:  # Added timeout
         try:
             # It's recommended to use environment variables for the base URL
-            response = await client.get(f'http://localhost:8000/researcher/{researcher_id}')
+            response = await client.get(f'https://researcher-profile-265479170833.us-central1.run.app/researcher/{researcher_id}')
             response.raise_for_status()
             researcher_data = response.json()
             
@@ -309,40 +314,9 @@ def get_researcher_composite_sync(
         )
 
 # original GET/PUT/POST on db
-@router.get("/researchers", response_model=CustomizedPage[
-    Page[ResearchProfile],
-    UseAdditionalFields(
-        link=str,
-    ),
-])
+@router.get("/researchers", response_model=Page[ResearchProfile])
 async def get_all_researchers(db: Session = Depends(get_db)):
-    
-    profiles = service.get_all_research_profiles(db)
-    
-    link_header = []
-    page = profiles.page
-    size = profiles.size
-    pages = profiles.pages
-
-    # Previous link: Check if there is a previous page
-    if page > 1:
-        prev_page = page - 1
-        link_header.append(
-            f'<{router.url_path_for("get_all_researchers")}?page={prev_page}&size={size}>; rel="prev"'
-        )
-
-    # Next link: Check if there is a next page
-    if page < pages:
-        next_page = page + 1
-        link_header.append(
-            f'<{router.url_path_for("get_all_researchers")}?page={next_page}&size={size}>; rel="next"'
-        )
-
-    # Add Link header to the response if any links were created
-    if link_header:
-        profiles.link = ", ".join(link_header)
-
-    return profiles
+    return service.get_all_research_profiles(db)
 
 
 @router.get("/researcher/{researcher_id}")
@@ -427,3 +401,51 @@ async def send_email(recipient, correlation_id):
         return {"message": "Email sent successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+# Pub/Sub Choreography
+redis_client = Redis(host='localhost', port=6379, db=0)
+
+@router.post("/researcher_pubsub")
+async def create_researcher_pubsub(
+    research_profile: ResearchProfile,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    profile = service.create_research_profile(db, research_profile)
+    
+    composite_data = {
+        "profile": research_profile.dict(),
+        "papers": [],
+        "metrics": {
+            "h_index": 0,
+            "total_citations": 0,
+            "i10_index": 0
+        },
+        "citations": []
+    }
+    
+    background_tasks.add_task(
+        redis_client.publish,
+        'researcher_events',
+        json.dumps(composite_data)
+    )
+    
+    return {"status": "profile_created", "id": profile.id}
+
+@router.get("/researcher_pubsub/{researcher_id}")
+async def get_researcher_pubsub(
+    researcher_id: int,
+    db: Session = Depends(get_db)
+):
+    profile = service.get_research_profile_by_id(db, researcher_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Researcher not found")
+        
+    return ResearcherComposite(
+        profile=profile,
+        papers=redis_client.get(f"papers:{researcher_id}"),
+        metrics=redis_client.get(f"metrics:{researcher_id}"),
+        citations=redis_client.get(f"citations:{researcher_id}")
+    )
+
+# Service orchestration
