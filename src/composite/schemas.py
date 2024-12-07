@@ -1,7 +1,6 @@
 # composite/schemas.py
 from typing import List, Optional
-from pydantic import BaseModel  # FastAPI
-# from ..researcher.schemas import ResearchProfile, ResearchPaper
+from pydantic import BaseModel
 
 class Citation(BaseModel):
     paper_id: int
