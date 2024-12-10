@@ -71,9 +71,9 @@ email_service = EmailService()
 @router.post("/like_researcher/")
 async def like_researcher(
     request: Request,
-    user_id: str,
-    researcher_id: str,
-    user_email: str
+    user_email: str,
+    researcher_email: str,
+    researcher_name: str
 ):
     """
     Handle researcher like action and send notification if there's a match.
@@ -83,12 +83,11 @@ async def like_researcher(
     
     try:
         # Get the current likes for the researcher
-        researcher_likes = settings.LIKE_MAP.get(researcher_id, [])
+        researcher_likes = settings.LIKE_MAP.get(researcher_email, [])
         
         # Check if user has already liked
-        if user_id in researcher_likes:
-            # It's a match! Send email notification
-            researcher_name = await get_researcher_name(researcher_id)
+        if user_email in researcher_likes:
+            # It's a match! Send email notification to user
             return await email_service.send_match_notification(
                 user_email,
                 researcher_name,
@@ -96,9 +95,9 @@ async def like_researcher(
             )
         else:
             # Add to likes
-            if researcher_id not in settings.LIKE_MAP:
-                settings.LIKE_MAP[researcher_id] = []
-            settings.LIKE_MAP[researcher_id].append(user_id)
+            if researcher_email not in settings.LIKE_MAP:
+                settings.LIKE_MAP[researcher_email] = []
+            settings.LIKE_MAP[researcher_email].append(user_email)
             return {"message": "Like recorded successfully"}
 
     except Exception as e:
