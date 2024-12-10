@@ -169,3 +169,36 @@ async def pubsub():
         print(f"Subscriber error: {e}")
 
     return 
+
+@router.post("/external_cloud_service/")
+async def get_wikipedia_summary(title):
+    """
+    Fetches the summary of a Wikipedia page by its title.
+
+    :param title: The title of the Wikipedia page (e.g., "GraphQL")
+    :return: A string containing the summary or an error message.
+    """
+    url = "https://en.wikipedia.org/w/api.php"
+    
+    # 定義 API 請求參數
+    params = {
+        "action": "query",
+        "format": "json",
+        "prop": "extracts",
+        "exintro": True,
+        "explaintext": True,
+        "titles": title
+    }
+    
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        pages = data.get("query", {}).get("pages", {})
+        for page_id, page_content in pages.items():
+            if page_id == "-1":
+                return f"Error: Page '{title}' not found."
+            return page_content.get("extract", "No summary available.")
+    except requests.exceptions.RequestException as e:
+        return f"Error: {e}"
