@@ -18,13 +18,15 @@ import logging
 # pubsub, workflow
 import requests
 from google.cloud import pubsub_v1
+import os
+import time
 
 router = APIRouter()
 
 # email
 logger = logging.getLogger(__name__)
 # pubsub, workflow
-token = "ya29.a0AeDClZD7hnPemu9m408a8SOEgiHU_QbFg_lPsanjFkmTgpG7U8a9u3_Yar83r-P6QbC0ohmJ6xlOj7xs_fZGyuPNqoI127NxCchvJzkJ1Pb0jh1xsRWkec3vhR-t5aEWb1urMPz6UVyEXs2gdWdZBeQZtad9FHW0_taWQEknx6hG5TCNPkT80n-iwY8KMPi3YOSFJq2poqULiqhwsCirNfjpAhbGGkmLeWMiqHLWWxDbIb3_pTVw7g23tdDZ0Cy_eDlIFdlfG9Pd7UJ3wxT4qyjz3ASUyeMT_XaXgOfQ-O2codtbFoMVbgAsmPF5mJL6G10qEqoKRHucbXjYC1TctqmHFezw5sFejbh4zofiSu74QIElz49RF6HO60MqEqyPrAn6JdUgpX0ddUPezVC_xYh0zfIoGNy7lktyaCgYKAdwSARESFQHGX2Mi6vvuqhHe-sLrpUGPe5zROg0427"
+# token = "ya29.a0AeDClZD7hnPemu9m408a8SOEgiHU_QbFg_lPsanjFkmTgpG7U8a9u3_Yar83r-P6QbC0ohmJ6xlOj7xs_fZGyuPNqoI127NxCchvJzkJ1Pb0jh1xsRWkec3vhR-t5aEWb1urMPz6UVyEXs2gdWdZBeQZtad9FHW0_taWQEknx6hG5TCNPkT80n-iwY8KMPi3YOSFJq2poqULiqhwsCirNfjpAhbGGkmLeWMiqHLWWxDbIb3_pTVw7g23tdDZ0Cy_eDlIFdlfG9Pd7UJ3wxT4qyjz3ASUyeMT_XaXgOfQ-O2codtbFoMVbgAsmPF5mJL6G10qEqoKRHucbXjYC1TctqmHFezw5sFejbh4zofiSu74QIElz49RF6HO60MqEqyPrAn6JdUgpX0ddUPezVC_xYh0zfIoGNy7lktyaCgYKAdwSARESFQHGX2Mi6vvuqhHe-sLrpUGPe5zROg0427"
 
 @router.get("/researcher/{researcher_id}", response_model=Dict[str, Any])
 async def get_researcher(researcher_id: int):
@@ -106,3 +108,64 @@ async def like_researcher(
             status_code=500,
             detail=f"Error processing like: {str(e)}"
         )
+    
+
+@router.post("/workflow_example/")
+async def pubsub():
+    import threading
+    """ 
+    Would need to first load the credential
+    Replace the token value in the env variable using the following command
+    """
+    # export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your-service-account-key.json"
+    # gcloud auth application-default print-access-token
+
+    workflow_url = "https://workflowexecutions.googleapis.com/v1/projects/coms-4153-cloud-computing/locations/us-central1/workflows/workflow-1/executions"
+    token = os.getenv("WORKFLOW_TOKEN")
+
+    payload = {
+        "argument": '{"scholarLink": "https://scholar.google.com/citations?user=l2g4PFYAAAAJ&hl=en"}'
+    }
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(workflow_url, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        execution_id = response.json()['name'].split('/')[-1]  # 提取 execution ID
+        print(f"Workflow started successfully. Execution ID: {execution_id}")
+    else:
+        print(f"Failed to start workflow execution: {response.text}")
+    
+    subscriber = pubsub_v1.SubscriberClient()
+    subscription_path = "projects/coms-4153-cloud-computing/subscriptions/pubsub-sub"
+
+    stop_event = threading.Event()
+
+    def callback(message):
+        print(f"Received message: {message.data.decode('utf-8')}")
+        message.ack()
+        stop_event.set()
+
+    print(f"Listening on {subscription_path}")
+    try:
+        streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
+
+        # Run the subscriber in a separate thread to allow graceful stopping
+        subscriber_thread = threading.Thread(target=streaming_pull_future.result)
+        subscriber_thread.start()
+
+        # Wait for the stop event
+        stop_event.wait()
+
+        # Cancel the subscriber when the stop event is set
+        streaming_pull_future.cancel()
+        subscriber_thread.join()
+
+    except Exception as e:
+        print(f"Subscriber error: {e}")
+
+    return 

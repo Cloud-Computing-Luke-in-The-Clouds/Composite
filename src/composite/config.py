@@ -6,6 +6,7 @@ from typing import Optional, Dict
 class Settings(BaseSettings):
     GCP_SERVICE_URL: str = "https://researcher-profile-265479170833.us-central1.run.app"
     gcp_mysql_connection_string: Optional[str] = None
+    WORKFLOW_TOKEN: Optional[str] = None
     # email
     SMTP_SERVER: str
     SMTP_PORT: int
