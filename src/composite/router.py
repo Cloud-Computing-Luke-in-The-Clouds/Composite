@@ -180,7 +180,6 @@ async def get_wikipedia_summary(title):
     """
     url = "https://en.wikipedia.org/w/api.php"
     
-    # 定義 API 請求參數
     params = {
         "action": "query",
         "format": "json",
