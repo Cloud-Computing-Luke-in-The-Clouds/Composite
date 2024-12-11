@@ -151,9 +151,10 @@ class EmailService:
         self.email_user = settings.EMAIL_USER
         self.email_password = settings.EMAIL_PASSWORD
 
-    async def send_match_notification(self, recipient_email: str, researcher_name: str, correlation_id: str) -> bool:
+    async def send_match_notification(self, recipient_email: str, researcher_email: str, correlation_id: str) -> bool:
         """Send a match notification email"""
         try:
+            # sending email 1 to user
             logger.info(f"Correlation ID: {correlation_id}, Sending match notification to {recipient_email}")
             
             msg = MIMEMultipart()
@@ -164,7 +165,7 @@ class EmailService:
             body = f"""
             Hi,
             
-            Great news! You and {researcher_name} have matched based on your research interests.
+            Great news! You and Researcher {researcher_email} have matched based on your research interests.
             
             Best regards,
             Luke In The Clouds Research Team
@@ -178,6 +179,33 @@ class EmailService:
                 server.send_message(msg)
 
             logger.info(f"Correlation ID: {correlation_id}, Email sent successfully to {recipient_email}")
+
+            # sending email 2 to user
+            logger.info(f"Correlation ID: {correlation_id}, Sending match notification to {recipient_email}")
+            
+            msg = MIMEMultipart()
+            msg["From"] = self.email_user
+            msg["To"] = researcher_email
+            msg["Subject"] = "New Research Match!"
+
+            body = f"""
+            Hi,
+            
+            Great news! You and User {recipient_email} have matched based on your research interests.
+            
+            Best regards,
+            Luke In The Clouds Research Team
+            """
+            
+            msg.attach(MIMEText(body, "plain"))
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.email_user, self.email_password)
+                server.send_message(msg)
+
+            logger.info(f"Correlation ID: {correlation_id}, Email sent successfully to {researcher_email}")
+
             return {"message": "Email sent successfully"}
 
         except Exception as e:

@@ -92,7 +92,7 @@ async def like_researcher(
             # It's a match! Send email notification to user
             return await email_service.send_match_notification(
                 user_email,
-                researcher_name,
+                researcher_email,
                 correlation_id
             )
         else:
